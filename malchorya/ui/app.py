@@ -4,7 +4,7 @@ from typing import Callable, Optional
 
 from core.state import GameState
 from core.enums import WindDirection
-from core.consts import MALCHORYA, WINDOW_W, WINDOW_H, FPS
+from core.consts import MALCHORYA, WINDOW_W, WINDOW_H, FPS, HUD_W, PADDING, LINE_H
 from core.enums import WindDirection
 
 
@@ -103,38 +103,120 @@ class App:
         return None
 
     def render(self, screen: pygame.Surface) -> None:
-        screen.fill((18, 18, 24))
-        self.draw_hud(screen)
+        w, h = self.config.width, self.config.height
+        view_w = w - HUD_W
+
+        view_rect = pygame.Rect(0, 0, view_w, h)
+        hud_rect = pygame.Rect(view_w, 0, HUD_W, h)
+
+        pygame.draw.rect(screen, (18, 18, 24), view_rect)
+
+        self.draw_hud(screen, hud_rect)
+
         pygame.display.flip()
 
-    def draw_hud(self, screen: pygame.Surface) -> None:
+    def blit_wrapped_text(
+        self,
+        screen: pygame.Surface,
+        text: str,
+        x: int,
+        y: int,
+        max_width: int,
+        *,
+        line_h: int = 22,
+        max_lines: int | None = None,
+    ) -> int:
+        assert self.font is not None
+        words = text.split()
+        line = ""
+        lines: list[str] = []
+
+        for w in words:
+            test = f"{line} {w}".strip()
+            if self.font.size(test)[0] <= max_width:
+                line = test
+            else:
+                if line:
+                    lines.append(line)
+                line = w
+
+        if line:
+            lines.append(line)
+
+        if max_lines is not None:
+            lines = lines[:max_lines]
+
+        for ln in lines:
+            self.blit_text(screen, ln, x, y)
+            y += line_h
+
+        return y
+
+    def draw_hud(self, screen: pygame.Surface, hud_rect: pygame.Rect) -> None:
         assert self.font is not None and self.font_big is not None
+
+        # Panel background + border
+        pygame.draw.rect(screen, (12, 12, 18), hud_rect)
+        pygame.draw.rect(screen, (60, 60, 90), hud_rect, 2)
+
+        x = hud_rect.x + PADDING
+        y = hud_rect.y + PADDING
+        max_text_w = hud_rect.width - (PADDING * 2)
 
         player = self.state.player
         world = self.state.world
         location = world.locations[player.location_id]
 
-        self.blit_text(screen, location.name, 20, 16, big=True)
-        self.blit_text(screen, location.description, 20, 56)
+        # Title
+        self.blit_text(screen, location.name, x, y, big=True)
+        y += 40
 
+        y = self.blit_wrapped_text(
+            screen,
+            location.description,
+            x,
+            y,
+            max_width=max_text_w,
+            line_h=LINE_H,
+            max_lines=3,
+        )
+        y += LINE_H
+
+        # Exits
         exits = ", ".join([d.name.lower() for d in location.exits.keys()]) or "none"
-        self.blit_text(screen, f"Exits: {exits}", 20, 92)
+        self.blit_text(screen, f"Exits: {exits}", x, y); y += LINE_H
+        y += LINE_H
 
+        # NPCs
         npcs_here = world.get_npcs_in_location(location.id)
         npc_line = ", ".join([f"{n.name} ({n.id})" for n in npcs_here]) if npcs_here else "none"
-        self.blit_text(screen, f"NPCs: {npc_line}", 20, 124)
+        self.blit_text(screen, f"NPCs: {npc_line}", x, y); y += LINE_H
+        y += LINE_H
 
+        # Keter
         keter_amount = self.safe_get_keter_amount(player)
-        self.blit_text(screen, f"Keter: {keter_amount}", 20, 156)
+        self.blit_text(screen, f"Keter: {keter_amount}", x, y); y += 2 * LINE_H
+        y += 2 * LINE_H
 
-        self.blit_text(screen, "Move: arrows/WASD | ESC: quit", 20, self.config.height - 32)
-
-        y = 190
+        # Messages box inside HUD
+        self.blit_text(screen, "Log:", x, y)
+        y += LINE_H
         for msg in self.messages[-6:]:
             if not msg:
                 continue
-            self.blit_text(screen, msg, 20, y)
-            y += 22
+            y = self.blit_wrapped_text(
+                screen,
+                f"- {msg}",
+                x,
+                y,
+                max_width=max_text_w,
+                line_h=LINE_H,
+                max_lines=2,
+            )
+
+            # Footer help
+            footer = "Move: arrows/WASD | L: look | I: inv | T: talk | C: status | ESC: quit"
+            self.blit_text(screen, footer, x, hud_rect.bottom - PADDING - LINE_H)
         
     def blit_text(self, screen: pygame.Surface, text: str, x: int, y: int, big: bool = False) -> None:
         assert self.font is not None and self.font_big is not None
