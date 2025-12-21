@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
+from core.entity import Entity
 
 
 class NpcKind(Enum):
@@ -9,10 +10,7 @@ class NpcKind(Enum):
     MYSTERIOUS = "mysterious"
 
 
-@dataclass(frozen=True)
-class Npc:
-    id: str
-    name: str
-    kind: NpcKind
-    location_id: str
-    tags: frozenset[str] = field(default_factory=frozenset)
+@dataclass
+class Npc(Entity):
+    location_id: str = None
+    tags: frozenset[str] = field(default_factory=set)

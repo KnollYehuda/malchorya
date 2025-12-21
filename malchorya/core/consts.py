@@ -1,0 +1,4 @@
+MALCHORYA = "Malchorya"
+WINDOW_W = 960
+WINDOW_H = 540
+FPS = 60

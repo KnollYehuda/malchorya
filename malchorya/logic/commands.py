@@ -32,7 +32,10 @@ def cmd_talk(state: GameState, option: Optional[str] = None) -> str:
     if npc.location_id != state.player.location_id:
         return "They are not here."
 
-    return DIALOGUE_BY_NPC_ID.get(npc.id, DIALOGUE_BY_KIND.get(npc.kind, "..."))
+    if npc.sentient:
+        return DIALOGUE_BY_NPC_ID.get(npc.id, DIALOGUE_BY_KIND.get(npc.kind, "..."))
+    else:
+        return "Only the rustling of birds and the buzzing of flies can be heard..."
 
 def cmd_status(state: GameState, option: Optional[str] = None) -> str:
     return (

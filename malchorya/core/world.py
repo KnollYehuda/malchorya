@@ -4,8 +4,7 @@ from typing import Dict, List
 from core.models import Location
 from core.enums import WindDirection
 from core.npcs import Npc, NpcKind
-
-MALCHORYA = "Malchorya"
+from core.consts import MALCHORYA
 
 @dataclass(frozen=True)
 class World:
@@ -51,24 +50,27 @@ def get_npcs() -> List[Npc]:
             name="Eron",
             kind=NpcKind.MERCHANT,
             location_id="riverbank",
+            sentient=True
         ),
         Npc(
             id="lysa_wanderer",
             name="Lysa",
             kind=NpcKind.CITIZEN,
             location_id="crossroads",
+            sentient=True
         ),
         Npc(
             id="borin_guard",
             name="Borin Stonehand",
             kind=NpcKind.GUARD,
             location_id="pinewood",
+            sentient=True
         ),
         Npc(
             id="silent_one",
             name="The Silent One",
             kind=NpcKind.MYSTERIOUS,
-            location_id="unknown",  # intentionally vague
+            location_id="unknown"
         ),
     ]
 
