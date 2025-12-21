@@ -5,6 +5,7 @@ from typing import Callable, Optional
 from core.state import GameState
 from core.enums import WindDirection
 from core.consts import MALCHORYA, WINDOW_W, WINDOW_H, FPS
+from core.enums import WindDirection
 
 
 
@@ -21,17 +22,19 @@ class App:
     def __init__(
         self,
         state: GameState,
-        on_move: Callable[[GameState, WindDirection], GameState],
+        on_command: Callable[[GameState, WindDirection], GameState],
         config: UiConfig = UiConfig(),
     ) -> None:
         self.state = state
-        self.on_move = on_move
+        self.on_command = on_command
         self.config = config
 
         self.running = False
         self.clock: Optional[pygame.time.Clock] = None
         self.font: Optional[pygame.font.Font] = None
         self.font_big: Optional[pygame.font.Font] = None
+        self.last_message = ""
+        self.messages = []
 
     def run(self) -> None:
         pygame.init()
@@ -45,7 +48,7 @@ class App:
         self.running = True
         while self.running:
             self.clock.tick(self.config.fps)
-            self.handle_events()
+            self._handle_events()
             self.render(screen)
 
         pygame.quit()
@@ -61,9 +64,31 @@ class App:
                     self.running = False
                     return
 
+                raw = None
+
                 direction = self.key_to_direction(event.key)
                 if direction is not None:
-                    self.state = self.on_move(self.state, direction)
+                    raw = f"move {direction.name.lower()}"
+                elif event.key == pygame.K_i:
+                    raw = "inventory"
+                elif event.key == pygame.K_l:
+                    raw = "look"
+                elif event.key == pygame.K_t:
+                    npcs = self.state.world.get_npcs_in_location(self.state.player.location_id)
+                    if len(npcs) == 1:
+                        raw = f"talk {npcs[0].id}"
+                    else:
+                        raw = "look"
+                elif event.key == pygame.K_c:
+                    raw = "status"
+                else:
+                    raw = ""
+                if raw:
+                    result = self.on_command(self.state, raw)
+                    self.state = result.state
+                    self.last_message = result.message
+                    self.messages.append(result.message)
+                    self.messages = self.messages[-6:]
 
     @staticmethod
     def key_to_direction(key: int) -> Optional[WindDirection]:
@@ -104,26 +129,32 @@ class App:
 
         self.blit_text(screen, "Move: arrows/WASD | ESC: quit", 20, self.config.height - 32)
 
+        y = 190
+        for msg in self.messages[-6:]:
+            if not msg:
+                continue
+            self.blit_text(screen, msg, 20, y)
+            y += 22
+        
     def blit_text(self, screen: pygame.Surface, text: str, x: int, y: int, big: bool = False) -> None:
         assert self.font is not None and self.font_big is not None
         font = self.font_big if big else self.font
         surf = font.render(text, True, (235, 235, 245))
         screen.blit(surf, (x, y))
 
-    @staticmethod
-    def safe_get_keter_amount(player) -> int:
+    def safe_get_keter_amount(self, player) -> int:
         inv = getattr(player, "inventory", None)
         if inv is None:
             return 0
-        if hasattr(inv, "count"):
-            try:
-                return int(inv.count("keter"))
-            except Exception:
-                pass
-        keter = getattr(inv, "keter", None)
-        if keter is not None and hasattr(keter, "amount"):
-            try:
-                return int(keter.amount)
-            except Exception:
-                pass
+
+        items = getattr(inv, "items", None)
+        if isinstance(items, dict):
+            for item_id, amount in items.items():
+                # item_id הוא Enum עם value כמו "keter"
+                if getattr(item_id, "value", None) == "keter":
+                    return int(amount)
+                # fallback נוסף אם זה Enum עם name
+                if getattr(item_id, "name", "").lower() == "keter":
+                    return int(amount)
+
         return 0

@@ -1,24 +1,16 @@
 from core.world import create_world
 from core.state import create_initial_state
-from logic.commands import handle_command
+from core.enums import WindDirection
+from logic.handle_command import handle_command
+from ui.app import App
 
+def on_command(state, raw: str):
+    return handle_command(state, raw)
 
 def main() -> None:
     world = create_world()
     state = create_initial_state(world)
-
-    print("Welcome to Malchorya.")
-    while True:
-        raw = input("> ").strip()
-        if not raw:
-            continue
-        if raw.lower() in {"quit", "exit"}:
-            print("Bye.")
-            return
-
-        out = handle_command(state, raw)
-        print(out)
-        print()
+    App(state=state, on_command=on_command).run()
 
 
 if __name__ == "__main__":
