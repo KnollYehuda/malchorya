@@ -15,6 +15,7 @@ from core.dialogue import (
 )
 from core.clock import format_clock, is_night, MINUTES_PER_DAY
 from core.enemies import ENEMY_DEFS
+from core.mapping import ascii_map
 from core.progression import effective_stats, grant_xp, xp_needed_for_next_level
 from logic.combat import (
     attack_enemy,
@@ -384,6 +385,10 @@ def cmd_wait(state: GameState, args: list[str]) -> CommandResult:
     return CommandResult(new_state, f"You wait {hours} hour(s). {format_clock(new_state.minutes)}")
 
 
+def cmd_map(state: GameState, args: list[str]) -> CommandResult:
+    return CommandResult(state, ascii_map(state))
+
+
 def cmd_help(state: GameState, args: list[str]) -> CommandResult:
     return CommandResult(state, Command.help_text())
 
@@ -404,6 +409,7 @@ HANDLERS: Dict[Command, Handler] = {
     Command.SELL: cmd_sell,
     Command.REST: cmd_rest,
     Command.TIME: cmd_time,
+    Command.MAP: cmd_map,
     Command.WAIT: cmd_wait,
     Command.HELP: cmd_help,
 }
@@ -435,6 +441,11 @@ def handle_command(state: GameState, raw: str) -> CommandResult:
         return CommandResult(state=state, message="Command not implemented yet.")
 
     result = handler(state, parsed.args)
+    if result.state.player.location_id not in result.state.visited:
+        result = CommandResult(
+            replace(result.state, visited=result.state.visited | {result.state.player.location_id}),
+            result.message,
+        )
     minutes_spent = TIME_COST_MINUTES.get(parsed.cmd, 0)
     if minutes_spent and result.state is not state:
         result = CommandResult(

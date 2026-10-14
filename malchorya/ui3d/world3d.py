@@ -1,4 +1,5 @@
 """Builds the 3D scene for one location from the same biome data as the 2D game."""
+import heapq
 import math
 import random
 from typing import Dict, List, Optional, Tuple
@@ -17,7 +18,7 @@ from ui import props as props2d
 from ui.scene import BIOMES, DEFAULT_BIOME, ENTITY_SLOTS, BiomeStyle
 from ui.textures import ground_variants
 from ui3d.meshes import MeshBuilder, flat_ellipse, flat_quad, rgb, vertical_quad
-from ui3d.props3d import GROUND_DECALS, PROP3D_BUILDERS, STANDING_CARDS, WALL_DECOR, Prop3D
+from ui3d.props3d import GROUND_DECALS, PROP3D_BUILDERS, STANDING_CARDS, WALL_DECOR, WALL_LIFT, Prop3D
 from ui3d.texturing import surface_to_texture, tiled_ground_texture
 
 PIXELS_PER_UNIT = 18.0
@@ -186,6 +187,9 @@ class LocationView:
             return None
         prop = builder(self.rng)
         prop.node.reparentTo(self.root)
+        if name in WALL_LIFT:
+            prop.node.setPos(position[0], WALL_Y - 0.3, WALL_LIFT[name])
+            return prop
         prop.node.setPos(position[0], position[1], 0)
         prop.node.setH(heading)
         if prop.collider is not None:
@@ -353,3 +357,135 @@ class LocationView:
                         pos_x = closest_x + delta_x / distance * radius
                         pos_y = closest_y + delta_y / distance * radius
         return pos_x, pos_y
+
+    # ------------------------------------------------------------ pathfinding
+
+    PATH_CELL = 0.6
+    PATH_CLEARANCE = 0.7
+
+    def _free(self, pos_x: float, pos_y: float, extra_circles=()) -> bool:
+        if not self.is_walkable(pos_x, pos_y):
+            return False
+        clearance = self.PATH_CLEARANCE
+        for collider in self.colliders:
+            if collider[0] == "circle":
+                if math.hypot(pos_x - collider[1], pos_y - collider[2]) < collider[3] + clearance:
+                    return False
+            else:
+                closest_x = max(collider[1] - collider[3], min(pos_x, collider[1] + collider[3]))
+                closest_y = max(collider[2] - collider[4], min(pos_y, collider[2] + collider[4]))
+                if math.hypot(pos_x - closest_x, pos_y - closest_y) < clearance:
+                    return False
+        for circle_x, circle_y, circle_radius in extra_circles:
+            if math.hypot(pos_x - circle_x, pos_y - circle_y) < circle_radius + clearance * 0.6:
+                return False
+        return True
+
+    def _line_clear(self, start, end, extra_circles) -> bool:
+        distance = math.hypot(end[0] - start[0], end[1] - start[1])
+        samples = max(1, int(distance / 0.3))
+        for index in range(1, samples + 1):
+            ratio = index / samples
+            if not self._free(start[0] + (end[0] - start[0]) * ratio, start[1] + (end[1] - start[1]) * ratio, extra_circles):
+                return False
+        return True
+
+    def find_path(self, start, goal, extra_circles=()) -> Optional[List[Tuple[float, float]]]:
+        """A* over a grid of the room; returns smoothed waypoints ending at `goal`."""
+        cell = self.PATH_CELL
+        min_x, max_x = -HALF_WIDTH + 0.6, HALF_WIDTH - 0.6
+        min_y, max_y = Y_MIN + 0.6, self.y_max - 0.6
+        columns = int((max_x - min_x) / cell) + 1
+        rows = int((max_y - min_y) / cell) + 1
+
+        def to_cell(point):
+            return (
+                max(0, min(columns - 1, round((point[0] - min_x) / cell))),
+                max(0, min(rows - 1, round((point[1] - min_y) / cell))),
+            )
+
+        def to_point(index):
+            return (min_x + index[0] * cell, min_y + index[1] * cell)
+
+        blocked_cache: Dict[Tuple[int, int], bool] = {}
+
+        def blocked(index) -> bool:
+            if index not in blocked_cache:
+                blocked_cache[index] = not self._free(*to_point(index), extra_circles)
+            return blocked_cache[index]
+
+        start_cell = to_cell(start)
+        goal_cell = to_cell(goal)
+        if blocked(goal_cell):
+            # Nearest free cell to the clicked spot.
+            best = None
+            for radius in range(1, 8):
+                ring = [
+                    (goal_cell[0] + offset_x, goal_cell[1] + offset_y)
+                    for offset_x in range(-radius, radius + 1)
+                    for offset_y in range(-radius, radius + 1)
+                    if max(abs(offset_x), abs(offset_y)) == radius
+                    and 0 <= goal_cell[0] + offset_x < columns
+                    and 0 <= goal_cell[1] + offset_y < rows
+                ]
+                free_cells = [index for index in ring if not blocked(index)]
+                if free_cells:
+                    best = min(free_cells, key=lambda index: math.hypot(index[0] - goal_cell[0], index[1] - goal_cell[1]))
+                    break
+            if best is None:
+                return None
+            goal_cell = best
+
+        def heuristic(index) -> float:
+            delta_x, delta_y = abs(index[0] - goal_cell[0]), abs(index[1] - goal_cell[1])
+            return (delta_x + delta_y) + (math.sqrt(2) - 2) * min(delta_x, delta_y)
+
+        open_heap = [(heuristic(start_cell), 0.0, start_cell)]
+        came_from: Dict[Tuple[int, int], Tuple[int, int]] = {}
+        cost_so_far = {start_cell: 0.0}
+        found = False
+        while open_heap:
+            _, cost, current = heapq.heappop(open_heap)
+            if current == goal_cell:
+                found = True
+                break
+            if cost > cost_so_far.get(current, 1e9):
+                continue
+            for step_x in (-1, 0, 1):
+                for step_y in (-1, 0, 1):
+                    if not step_x and not step_y:
+                        continue
+                    neighbour = (current[0] + step_x, current[1] + step_y)
+                    if not (0 <= neighbour[0] < columns and 0 <= neighbour[1] < rows) or blocked(neighbour):
+                        continue
+                    if step_x and step_y and (blocked((current[0] + step_x, current[1])) or blocked((current[0], current[1] + step_y))):
+                        continue
+                    new_cost = cost + (math.sqrt(2) if step_x and step_y else 1.0)
+                    if new_cost < cost_so_far.get(neighbour, 1e9):
+                        cost_so_far[neighbour] = new_cost
+                        came_from[neighbour] = current
+                        heapq.heappush(open_heap, (new_cost + heuristic(neighbour), new_cost, neighbour))
+        if not found:
+            return None
+
+        cells = [goal_cell]
+        while cells[-1] != start_cell:
+            cells.append(came_from[cells[-1]])
+        cells.reverse()
+        points = [to_point(index) for index in cells]
+        points[-1] = goal if self._free(*goal, extra_circles) else points[-1]
+
+        # Drop waypoints that have a clear straight line to a later one.
+        smoothed = [start]
+        anchor = start
+        index = 0
+        while index < len(points):
+            furthest = index
+            for later in range(len(points) - 1, index - 1, -1):
+                if self._line_clear(anchor, points[later], extra_circles):
+                    furthest = later
+                    break
+            anchor = points[furthest]
+            smoothed.append(anchor)
+            index = furthest + 1
+        return smoothed[1:]

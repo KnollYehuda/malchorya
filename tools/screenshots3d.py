@@ -23,10 +23,15 @@ def main(out_dir: str, only: list[str]) -> None:
                 game.state, minutes=minutes, player=replace(game.state.player, location_id=location_id)
             )
             game.sync_world(arrival=(0.0, -4.0))
+            game.minimap_clock = 0
             game.update(0.016)
             game.save_screenshot(os.path.join(out_dir, f"{location_id}_{label}.png"))
             if not only:
                 break
+
+
+def world_map(out_dir: str) -> None:
+    pass
 
 
 if __name__ == "__main__":

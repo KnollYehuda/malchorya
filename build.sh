@@ -93,10 +93,19 @@ cmd_run3d() {
     if [ "${GPU:-0}" = "1" ] && [ -d /dev/dri ]; then
         gpu_args=(--device /dev/dri)
     fi
+    local audio_args=()
+    local pulse_socket="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pulse/native"
+    if [ -S "$pulse_socket" ]; then
+        audio_args=(-v "$pulse_socket:/tmp/pulse-native" -e PULSE_SERVER=unix:/tmp/pulse-native -e SDL_AUDIODRIVER=pulseaudio)
+        if [ -f "$HOME/.config/pulse/cookie" ]; then
+            audio_args+=(-v "$HOME/.config/pulse/cookie:/root/.config/pulse/cookie:ro")
+        fi
+    fi
     docker run --rm \
         -e DISPLAY="$DISPLAY" \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
         "${gpu_args[@]}" \
+        "${audio_args[@]}" \
         --ipc=host \
         "$IMAGE" python3 malchorya/main3d.py
 }

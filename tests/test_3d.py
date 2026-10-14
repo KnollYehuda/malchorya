@@ -26,7 +26,7 @@ class Game3DTest(unittest.TestCase):
         game.state = replace(create_initial_state(game.state.world), minutes=12 * 60)
         game.messages = []
         game.input_active = False
-        game.camera_yaw, game.camera_pitch = 0.0, 52.0
+        game.camera_yaw, game.camera_pitch = 0.0, 45.0
         game.sync_world(arrival=(0.0, -4.0))
 
     def teleport(self, location_id, position=(0.0, -4.0)):
@@ -99,6 +99,131 @@ class Game3DTest(unittest.TestCase):
         game.rotate_camera(0, -10000)
         self.assertEqual(game.camera_pitch, 25.0)
         game.camera_pitch = pitch
+
+    def test_screen_center_ray_hits_ground_near_the_player(self):
+        game = self.game
+        game.player_x, game.player_y = 4.0, -2.0
+        game._snap_camera()
+        hit_x, hit_y = game.screen_to_ground(0.0, 0.0)
+        self.assertLess(abs(hit_x - 4.0) + abs(hit_y + 2.0), 3.5)
+
+    def walk(self, seconds=4.0):
+        for _ in range(int(seconds / 0.05)):
+            self.game.update(0.05)
+
+    def test_click_to_walk_reaches_the_spot(self):
+        game = self.game
+        self.assertTrue(game.set_move_target(6.0, 3.0))
+        self.walk()
+        self.assertAlmostEqual(game.player_x, 6.0, delta=0.5)
+        self.assertAlmostEqual(game.player_y, 3.0, delta=0.5)
+        self.assertIsNone(game.move_target)
+
+    def test_click_to_walk_goes_around_a_tree(self):
+        game = self.game
+        game.view.colliders.append(("circle", 3.0, 0.0, 1.2))
+        game.player_x, game.player_y = 0.0, 0.0
+        game.set_move_target(8.0, 0.0)
+        self.walk(5.0)
+        self.assertAlmostEqual(game.player_x, 8.0, delta=0.8)
+
+    def test_click_on_water_is_refused(self):
+        game = self.game
+        self.teleport("riverbank")
+        self.assertFalse(game.set_move_target(0.0, 14.0))
+        self.assertIsNone(game.move_target)
+        self.assertIn("can't walk", game.messages[-1])
+
+    def test_click_past_the_edge_uses_the_exit(self):
+        game = self.game
+        game.set_move_target(0.0, game.view.y_max + 6)
+        self.walk(6.0)
+        self.assertEqual(game.state.player.location_id, "pinewood")
+
+    def test_movement_keys_cancel_click_walk(self):
+        game = self.game
+        game.set_move_target(10.0, 0.0)
+        game.step_player(0, 1, 0.05)
+        self.assertIsNone(game.move_target)
+
+    def test_characters_are_3d_rigs_that_animate(self):
+        game = self.game
+        self.teleport("forest_depths", position=(0.0, -12.0))
+        self.assertIsNotNone(game.player_rig)
+        self.assertTrue(all("rig" in entity for entity in game.entities))
+        game.set_move_target(0.0, -8.0)
+        pitches = set()
+        for _ in range(12):
+            game.update(0.05)
+            pitches.add(round(game.player_rig.parts["leg_l"].getP(), 1))
+        self.assertGreater(len(pitches), 3)
+        enemy = next(entity for entity in game.entities if entity["kind"] == "enemy")
+        game.player_x, game.player_y = enemy["x"] + 2.0, enemy["y"]
+        game._hotkey_attack()
+        self.assertLess(game.player_rig.attack_time, 0.5)
+        self.assertIn(enemy["id"], game.hit_flash)
+
+    def events(self, kind):
+        return [name for event_kind, name in self.game.audio.events if event_kind == kind]
+
+    def settle_audio(self):
+        self.game.audio.update(3.0)
+
+    def test_music_follows_location_time_and_combat(self):
+        game = self.game
+        self.teleport("crossroads")
+        self.assertEqual(game.audio.music_name, "overworld")
+        self.teleport("forest_depths", position=(0.0, -12.0))
+        self.assertEqual(game.audio.music_name, "combat")
+        self.teleport("chapel")
+        self.assertEqual(game.audio.music_name, "sacred")
+        self.teleport("tavern")
+        self.assertEqual(game.audio.music_name, "tavern")
+        game.state = replace(game.state, minutes=23 * 60)
+        self.teleport("crossroads")
+        self.assertEqual(game.audio.music_name, "night")
+        self.assertIn("crickets", game.audio._ambience_key)
+        game.state = replace(game.state, minutes=12 * 60)
+        self.teleport("crossroads")
+        self.assertIn("birds", game.audio._ambience_key)
+
+    def test_combat_sounds(self):
+        game = self.game
+        self.teleport("forest_depths", position=(0.0, -12.0))
+        enemy = next(entity for entity in game.entities if entity["kind"] == "enemy")
+        game.player_x, game.player_y = enemy["x"] + 2.0, enemy["y"]
+        game.audio.events.clear()
+        game._hotkey_attack()
+        self.settle_audio()
+        sfx = self.events("sfx")
+        self.assertIn("swing", sfx)
+        self.assertIn("hit_flesh", sfx)
+        self.assertIn("hurt", sfx)
+        self.assertIn("growl_wolf", sfx)
+
+    def test_story_and_trade_sounds(self):
+        game = self.game
+        game.audio.events.clear()
+        game.state = replace(game.state, minutes=10 * 60)
+        game.run_command("talk lysa_wanderer")
+        self.settle_audio()
+        self.assertIn("quest_start", self.events("stinger"))
+        self.assertTrue(any(name.startswith("talk_") for name in self.events("sfx")))
+        self.teleport("tavern")
+        game.audio.events.clear()
+        game.run_command("buy health_potion")
+        game.run_command("use health_potion")
+        self.assertIn("coin", self.events("sfx"))
+
+    def test_footsteps_match_the_surface(self):
+        game = self.game
+        for location_id, surface in (("pinewood", "step_grass"), ("tavern", "step_wood"), ("chapel", "step_stone")):
+            self.teleport(location_id)
+            game.audio.events.clear()
+            game.set_move_target(0.0, -9.0)
+            for _ in range(40):
+                game.update(0.05)
+            self.assertIn(surface, self.events("sfx"), location_id)
 
     def test_command_line_input(self):
         game = self.game

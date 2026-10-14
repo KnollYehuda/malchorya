@@ -15,6 +15,12 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Synthesize all audio once (cached unless the sound code changes), outside /app so dev mounts keep it.
+COPY malchorya/sound malchorya/sound
+COPY tools/make_audio.py tools/make_audio.py
+ENV MALCHORYA_AUDIO_DIR=/opt/malchorya_audio
+RUN python3 tools/make_audio.py /opt/malchorya_audio
+
 COPY . .
 
 ENV PYTHONPATH=/app/malchorya

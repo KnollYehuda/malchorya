@@ -37,6 +37,7 @@ class GameState:
     quest_progress: Dict[str, int] = field(default_factory=dict)
     rng: random.Random = field(default_factory=random.Random)
     minutes: int = START_MINUTES
+    visited: frozenset = frozenset()
 
     @property
     def hour(self) -> int:
@@ -70,4 +71,5 @@ def create_initial_state(world: World) -> GameState:
         player=player,
         location_items=location_items,
         enemies=create_initial_enemies(),
+        visited=frozenset({player.location_id}),
     )

@@ -131,6 +131,27 @@ class GameTest(unittest.TestCase):
         self.assertEqual(self.state.hour, 6)
         self.assertEqual(self.state.minutes // 1440, 1)
 
+    def test_map_layout_matches_the_world_geometry(self):
+        from core.mapping import layout
+        positions = layout(self.state.world)
+        self.assertEqual(len(positions), len(self.state.world.locations))
+        self.assertEqual(positions["crossroads"], (0, 0))
+        self.assertEqual(positions["pinewood"], (0, -1))
+        self.assertEqual(positions["river_dock"], (2, 0))
+        self.assertEqual(positions["tavern"], (-1, 1))
+        self.assertEqual(len(set(positions.values())), len(positions))
+
+    def test_visited_places_are_remembered_and_shown_on_the_map(self):
+        self.assertEqual(self.state.visited, frozenset({"crossroads"}))
+        self.run_commands("move north", "move south")
+        self.assertEqual(self.state.visited, frozenset({"crossroads", "pinewood"}))
+        text = self.run_commands("map")
+        self.assertIn("[@]", text)
+        self.assertIn("[#]", text)
+        self.assertIn("[?]", text)
+        self.assertIn("Pinewood", text)
+        self.assertNotIn("Blackwater", text)
+
     def test_ui_renders_headless(self):
         import pygame
         from ui.app import App

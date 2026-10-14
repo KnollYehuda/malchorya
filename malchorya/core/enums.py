@@ -45,6 +45,7 @@ class Command(Enum):
     SELL = ("sell", 1, "<item_id> [amount]")
     REST = ("rest", 0, "")
     TIME = ("time", 0, "")
+    MAP = ("map", 0, "")
     WAIT = ("wait", 0, "[hours]")
     HELP = ("help", 0, "")
 

@@ -318,7 +318,97 @@ def dock_post(rng: random.Random) -> Prop3D:
     return Prop3D(builder.build(), ("circle", 0.2))
 
 
+def reeds(rng: random.Random) -> Prop3D:
+    builder = MeshBuilder("reeds", rng.randint(0, 9999))
+    for _ in range(7):
+        base = (rng.uniform(-0.45, 0.45), rng.uniform(-0.45, 0.45), 0)
+        height = rng.uniform(1.4, 2.5)
+        sway = (base[0] + rng.uniform(-0.25, 0.25), base[1] + rng.uniform(-0.25, 0.25), height)
+        builder.tube(base, sway, 0.035, 0.015, _vary(rng, rgb(98, 130, 62), 12), 4)
+        if rng.random() < 0.55:
+            builder.tube((sway[0], sway[1], height - 0.32), (sway[0], sway[1], height - 0.02), 0.06, 0.05, rgb(92, 58, 40), 5)
+    return Prop3D(builder.build(), None)
+
+
+def mushrooms(rng: random.Random) -> Prop3D:
+    builder = MeshBuilder("mushrooms", rng.randint(0, 9999))
+    for index in range(3):
+        base_x, base_y = (index - 1) * 0.28 + rng.uniform(-0.05, 0.05), rng.uniform(-0.15, 0.15)
+        height = rng.uniform(0.2, 0.42)
+        builder.tube((base_x, base_y, 0), (base_x, base_y, height), 0.045, 0.04, rgb(224, 218, 198), 5)
+        builder.sphere((base_x, base_y, height), (0.16, 0.16, 0.1), rgb(190, 52, 58), rings=1, segments=7)
+        builder.sphere((base_x + 0.05, base_y, height + 0.08), (0.03, 0.03, 0.02), rgb(246, 240, 230), rings=1, segments=4)
+    return Prop3D(builder.build(), None)
+
+
+def flowers(rng: random.Random) -> Prop3D:
+    builder = MeshBuilder("flowers", rng.randint(0, 9999))
+    for _ in range(9):
+        pos_x, pos_y = rng.uniform(-0.8, 0.8), rng.uniform(-0.8, 0.8)
+        height = rng.uniform(0.25, 0.5)
+        builder.tube((pos_x, pos_y, 0), (pos_x, pos_y, height), 0.012, 0.012, rgb(70, 124, 56), 4)
+        builder.sphere((pos_x, pos_y, height), (0.07, 0.07, 0.05), rng.choice([rgb(244, 224, 90), rgb(236, 236, 244), rgb(226, 120, 172), rgb(150, 150, 236)]), rings=1, segments=6)
+    return Prop3D(builder.build(), None)
+
+
+def herbs(rng: random.Random) -> Prop3D:
+    builder = MeshBuilder("herbs", rng.randint(0, 9999))
+    for _ in range(8):
+        pos_x, pos_y = rng.uniform(-0.5, 0.5), rng.uniform(-0.5, 0.5)
+        builder.tube((pos_x, pos_y, 0), (pos_x + rng.uniform(-0.2, 0.2), pos_y + rng.uniform(-0.2, 0.2), rng.uniform(0.4, 0.8)), 0.03, 0.01, rng.choice([rgb(90, 142, 72), rgb(112, 164, 82), rgb(72, 122, 66)]), 4)
+    builder.sphere((0.1, 0.0, 0.7), (0.07, 0.07, 0.07), rgb(160, 100, 200), rings=1, segments=5)
+    return Prop3D(builder.build(), None)
+
+
+def shelves(rng: random.Random) -> Prop3D:
+    builder = MeshBuilder("shelves", rng.randint(0, 9999))
+    for plank_z in (0.0, 1.1):
+        builder.box((0, 0, plank_z), (6.2, 0.55, 0.12), WOOD)
+    builder.box((-3.0, 0, 0.55), (0.12, 0.55, 1.2), DARK_WOOD)
+    builder.box((3.0, 0, 0.55), (0.12, 0.55, 1.2), DARK_WOOD)
+    for plank_z in (0.06, 1.16):
+        for bottle_x in [-2.7 + 0.45 * index for index in range(13)]:
+            color = rng.choice([rgb(70, 130, 90), rgb(160, 70, 60), rgb(90, 100, 170), rgb(190, 160, 70)])
+            height = rng.uniform(0.4, 0.62)
+            builder.cylinder((bottle_x, 0, plank_z), 0.09, height, color, 6)
+            builder.cylinder((bottle_x, 0, plank_z + height), 0.04, 0.14, color, 5)
+    return Prop3D(builder.build(), None)
+
+
+def banner(rng: random.Random) -> Prop3D:
+    builder = MeshBuilder("banner", rng.randint(0, 9999))
+    builder.tube((-0.95, 0, 3.7), (0.95, 0, 3.7), 0.05, 0.05, rgb(86, 62, 40), 5)
+    builder.box((0, 0, 1.9), (1.7, 0.08, 3.4), rgb(140, 40, 50))
+    builder.box((0, -0.05, 1.0), (1.7, 0.1, 0.12), rgb(224, 192, 90))
+    builder.cone((0, -0.06, 2.2), 0.34, 0.6, rgb(224, 192, 90), 3)
+    builder.cone((-0.5, 0, 0.05), 0.3, 0.4, rgb(140, 40, 50), 3)
+    builder.cone((0.5, 0, 0.05), 0.3, 0.4, rgb(140, 40, 50), 3)
+    return Prop3D(builder.build(), None)
+
+
+def window(rng: random.Random) -> Prop3D:
+    builder = MeshBuilder("window", rng.randint(0, 9999), variation=0.03)
+    frame = rgb(70, 56, 46)
+    builder.box((0, 0, 1.7), (2.3, 0.22, 3.4), frame)
+    colors = [rgb(214, 76, 76), rgb(80, 112, 210), rgb(236, 206, 80), rgb(80, 176, 124)]
+    for row in range(4):
+        for column in range(2):
+            builder.box((-0.45 + column * 0.9, -0.1, 0.55 + row * 0.75), (0.8, 0.06, 0.66), colors[(row + column + rng.randint(0, 3)) % 4])
+    builder.cone((0, -0.02, 3.4), 0.55, 0.5, frame, 4)
+    return Prop3D(builder.build(), None, emissive=True)
+
+
+# Wall decorations hang on the north wall at this height instead of standing on the floor.
+WALL_LIFT = {"shelves": 1.7, "banner": 0.4, "window": 1.1}
+
 PROP3D_BUILDERS: Dict[str, Callable[[random.Random], Prop3D]] = {
+    "reeds": reeds,
+    "mushrooms": mushrooms,
+    "flowers": flowers,
+    "herbs": herbs,
+    "shelves": shelves,
+    "banner": banner,
+    "window": window,
     "tree_round": tree_round,
     "pine": pine,
     "dead_tree": dead_tree,
@@ -352,6 +442,6 @@ PROP3D_BUILDERS: Dict[str, Callable[[random.Random], Prop3D]] = {
 }
 
 # Props that stay flat 2D art: lie on the ground / hang on a wall / stand as upright cards.
-GROUND_DECALS = {"pool", "flowers", "mat"}
-WALL_DECOR = {"shelves", "banner", "window"}
-STANDING_CARDS = {"reeds", "mushrooms", "herbs"}
+GROUND_DECALS = {"pool", "mat"}
+WALL_DECOR: set = set()
+STANDING_CARDS: set = set()

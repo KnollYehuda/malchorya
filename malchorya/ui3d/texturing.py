@@ -58,3 +58,10 @@ def tiled_ground_texture(variants: list, size_tiles: int = 16, seed: int = 1, ti
         for tile_column in range(size_tiles):
             surface.blit(rng.choice(variants), (tile_column * tile_pixels, tile_row * tile_pixels))
     return surface_to_texture(surface, repeat=True, with_alpha=False)
+
+
+def update_texture(texture: Texture, surface: pygame.Surface) -> None:
+    """Replace a texture's pixels in place (same size as it was created with)."""
+    if POWER_OF_TWO_ONLY:
+        surface = _power_of_two(_rgba_surface(surface))
+    texture.setRamImageAs(pygame.image.tostring(_rgba_surface(surface), "RGBA", True), "RGBA")
