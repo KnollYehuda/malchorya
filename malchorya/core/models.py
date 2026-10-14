@@ -8,3 +8,4 @@ from core.entity import Entity
 class Location(Entity):
     exits: Dict[WindDirection, str] = field(default_factory=frozenset)
     npc_ids: List[str] = None
+    biome: str = "grass"

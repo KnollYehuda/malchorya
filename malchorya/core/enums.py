@@ -35,8 +35,19 @@ class Command(Enum):
     STATUS = ("status", 0, "")
     MOVE = ("move", 1, "<direction>")
     INVENTORY = ("inventory", 0, "")
+    BUY = ("buy", 1, "<item_id> [amount]")
+    TAKE = ("take", 1, "<item_id>")
+    QUESTS = ("quests", 0, "")
+    ATTACK = ("attack", 0, "[enemy_id]")
+    EQUIP = ("equip", 1, "<item_id>")
+    UNEQUIP = ("unequip", 1, "<weapon|armor>")
+    USE = ("use", 1, "<item_id>")
+    SELL = ("sell", 1, "<item_id> [amount]")
+    REST = ("rest", 0, "")
+    TIME = ("time", 0, "")
+    WAIT = ("wait", 0, "[hours]")
     HELP = ("help", 0, "")
-    
+
     def __init__(self, value: str, min_args: int, usage_suffix: str):
         self._value_ = value
         self.min_args = min_args
